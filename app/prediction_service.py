@@ -6,7 +6,15 @@ import json
 
 # --- 1. Load Model and Class Indices ---
 # It's efficient to load these once when the application starts.
-model = tf.keras.models.load_model('models/plant_disease_model.h5')
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        model = tf.keras.models.load_model("models/plant_disease_model.h5")
+    return model
+
+model = get_model()
 with open('models/class_indices.json', 'r') as f:
     # Keras's flow_from_directory uses string indices, so we ensure they match.
     class_indices = {str(k): v for k, v in json.load(f).items()}
