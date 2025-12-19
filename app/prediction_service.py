@@ -4,47 +4,81 @@ import numpy as np
 import io
 import json
 
-# --- 1. Load Model and Class Indices ---
-# It's efficient to load these once when the application starts.
-model = None
+# --------------------------------------------------
+# 1. Load model (lazy loading – SAFE for Render)
+# --------------------------------------------------
+MODEL_PATH = "models/plant_disease_model.keras"
+CLASS_INDEX_PATH = "models/class_indices.json"
+
+_model = None
+_class_map = None
+
 
 def get_model():
-    global model
-    if model is None:
-        model = tf.keras.models.load_model(
-            "models/plant_disease_model.h5",
+    global _model
+    if _model is None:
+        _model = tf.keras.models.load_model(
+            MODEL_PATH,
             compile=False
         )
-    return model
+        print("✅ Lightweight model loaded")
+    return _model
 
-model = get_model()
-with open('models/class_indices.json', 'r') as f:
-    # Keras's flow_from_directory uses string indices, so we ensure they match.
-    class_indices = {str(k): v for k, v in json.load(f).items()}
 
-# --- 2. Preprocessing Function ---
-# This function must exactly match the preprocessing you used for training.
+def get_class_map():
+    """
+    Handles BOTH formats safely:
+    1) { "Apple___Black_rot": 1 }
+    2) { "1": "Apple___Black_rot" }
+    """
+    global _class_map
+    if _class_map is None:
+        with open(CLASS_INDEX_PATH, "r") as f:
+            raw = json.load(f)
+
+        # If keys are digits → already index → name
+        if all(str(k).isdigit() for k in raw.keys()):
+            _class_map = {int(k): v for k, v in raw.items()}
+        else:
+            # Otherwise → name → index → invert
+            _class_map = {v: k for k, v in raw.items()}
+
+        print("✅ Class map loaded:", _class_map)
+
+    return _class_map
+
+
+
+# --------------------------------------------------
+# 2. Image preprocessing
+# --------------------------------------------------
 def preprocess_image(image_bytes: bytes, target_size=(224, 224)) -> np.ndarray:
-    """Converts image bytes to a preprocessed numpy array for the model."""
-    img = Image.open(io.BytesIO(image_bytes))
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = img.resize(target_size)
+
     img_array = tf.keras.preprocessing.image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)  # Create a batch
-    img_array = img_array.astype('float32') / 255.0  # Rescale
+    img_array = img_array / 255.0  # normalize
+    img_array = np.expand_dims(img_array, axis=0)
+
     return img_array
 
-# --- 3. Prediction Function ---
+
+# --------------------------------------------------
+# 3. Prediction
+# --------------------------------------------------
 def predict_disease(image_bytes: bytes) -> dict:
-    """Takes image bytes and returns the predicted disease and confidence."""
-    # Preprocess the image
-    processed_img = preprocess_image(image_bytes)
+    model = get_model()
+    class_map = get_class_map()
 
-    # Make prediction
-    prediction = model.predict(processed_img)
-    
-    # Get the top prediction
-    predicted_class_index = str(np.argmax(prediction, axis=1)[0])
-    disease_name = class_indices.get(predicted_class_index, "Unknown Disease")
-    confidence = float(np.max(prediction))
+    image = preprocess_image(image_bytes)
 
-    return {"disease_name": disease_name, "confidence": confidence}
+    preds = model.predict(image)
+    class_id = int(np.argmax(preds))
+    confidence = float(np.max(preds))
+
+    disease_name = class_map.get(class_id, "Unknown Disease")
+
+    return {
+        "disease_name": disease_name,
+        "confidence": round(confidence, 4)
+    }
