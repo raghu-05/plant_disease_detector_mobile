@@ -4,7 +4,7 @@ from PIL import Image
 import io
 import json
 
-MODEL_PATH = "models/plant_disease_model.keras"
+MODEL_PATH = "models/plant_disease_model.h5"
 
 _model = None
 _class_indices = None
