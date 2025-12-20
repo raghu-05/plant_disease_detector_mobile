@@ -23,7 +23,12 @@ if not SQLALCHEMY_DATABASE_URL:
 
 # Create the SQLAlchemy engine for PostgreSQL
 # The 'connect_args' is for SQLite only, so we remove it.
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={"sslmode": "require"}
+)
 
 # --- The rest of the file is the same ---
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

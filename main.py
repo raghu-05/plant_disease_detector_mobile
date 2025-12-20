@@ -29,17 +29,20 @@ app.add_middleware(
 )
 
 # --- NEW: Mail Sending Configuration ---
-conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
-    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
-    MAIL_FROM=os.getenv("MAIL_FROM"),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),
-    MAIL_SERVER=os.getenv("MAIL_SERVER"),
-    MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() in ('true', '1', 't'),
-    MAIL_SSL_TLS=os.getenv("MAIL_SSL_TLS", "False").lower() in ('true', '1', 't'),
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
-)
+conf = None
+if os.getenv("MAIL_USERNAME"):
+    conf = ConnectionConfig(
+        MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
+        MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
+        MAIL_FROM=os.getenv("MAIL_FROM"),
+        MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),
+        MAIL_SERVER=os.getenv("MAIL_SERVER"),
+        MAIL_STARTTLS=True,
+        MAIL_SSL_TLS=False,
+        USE_CREDENTIALS=True,
+        VALIDATE_CERTS=True
+    )
+
 # --- END NEW ---
 
 # plant_disease_backend/main.py
@@ -110,6 +113,9 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)
 @app.post("/password-recovery/{email}")
 async def recover_password(email: str, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
     user = db.query(database.User).filter(database.User.email == email).first()
+    if not conf:
+        raise HTTPException(status_code=500, detail="Mail service not configured")
+
     if not user:
         raise HTTPException(status_code=404, detail="The user with this email does not exist in the system.")
 
@@ -157,9 +163,10 @@ async def analyze_plant_image(file: UploadFile = File(...)):
 
     return {
         "disease_name": prediction_result["disease_name"],
-        "confidence": f'{prediction_result["confidence"]:.2%}',
-        "severity_percentage": f"{severity_percentage:.2f}%"
+        "confidence": float(prediction_result["confidence"]),
+        "severity_percentage": float(severity_percentage)
     }
+
 
 @app.get("/get-treatment/", summary="Get treatment plan for a disease")
 async def get_treatment(disease_name: str, severity: float, language: str = "English"):
@@ -212,4 +219,12 @@ async def calculate_impact(disease_name: str, severity: float):
 @app.get("/view-feedbacks/")
 def read_feedbacks(db: Session = Depends(get_db)):
     feedbacks = db.query(Feedback).all()
-    return feedbacks
+    return [
+        {
+            "id": f.id,
+            "name": f.name,
+            "email": f.email,
+            "message": f.message
+        }
+        for f in feedbacks
+    ]
