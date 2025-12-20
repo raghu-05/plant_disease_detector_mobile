@@ -4,7 +4,7 @@ import numpy as np
 import io
 import json
 
-MODEL_PATH = "models/plant_disease_model.keras"
+MODEL_PATH = "models/plant_disease_model_tf"
 CLASS_INDEX_PATH = "models/class_indices.json"
 
 _model = None
