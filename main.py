@@ -8,6 +8,7 @@ from app import economic_service
 # We removed BaseModel from here because it's now in schemas.py
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 import traceback
+from fastapi.responses import JSONResponse
 
 import os
 # Import services, database components, AND the new schemas
@@ -152,23 +153,26 @@ async def reset_password(token: str, new_password: str, db: Session = Depends(da
 async def read_users_me(current_user: schemas.User = Depends(auth.get_current_user)):
     return current_user
 
-@app.post("/analyze-plant/", summary="Analyze a plant image for disease and severity")
+@app.post("/analyze-plant/")
 async def analyze_plant_image(file: UploadFile = File(...)):
-    image_bytes = await file.read()
-    
     try:
+        image_bytes = await file.read()
+
         prediction_result = prediction_service.predict_disease(image_bytes)
         severity_percentage = severity_service.analyze_severity(image_bytes)
+
+        return {
+            "disease_name": prediction_result["disease_name"],
+            "confidence": float(prediction_result["confidence"]),
+            "severity_percentage": float(severity_percentage)
+        }
+
     except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Image processing failed")
-
-    return {
-        "disease_name": prediction_result["disease_name"],
-        "confidence": float(prediction_result["confidence"]),
-        "severity_percentage": float(severity_percentage)
-    }
-
+        traceback.print_exc()   # 👈 THIS IS CRITICAL
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 @app.get("/get-treatment/", summary="Get treatment plan for a disease")
 async def get_treatment(disease_name: str, severity: float, language: str = "English"):

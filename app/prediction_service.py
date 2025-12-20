@@ -26,11 +26,16 @@ def get_class_names():
 
 
 def preprocess_image(image_bytes):
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception:
+        raise ValueError("Invalid image file")
+
     img = img.resize((224, 224))
-    arr = np.array(img) / 255.0
+    arr = np.asarray(img, dtype=np.float32) / 255.0
     arr = np.expand_dims(arr, axis=0)
     return arr
+
 
 
 def predict_disease(image_bytes):
