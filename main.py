@@ -10,6 +10,7 @@ from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 import io
 import tensorflow as tf
 import json
+import numpy as np
 
 import traceback
 from fastapi.responses import JSONResponse
