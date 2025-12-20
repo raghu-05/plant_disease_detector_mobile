@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
-import json
 from PIL import Image
 import io
+import json
 
 MODEL_PATH = "models/plant_disease_model.keras"
 
@@ -27,21 +27,19 @@ def load_model_and_classes():
 def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = img.resize((224, 224))
-    img = np.array(img) / 255.0
-    img = np.expand_dims(img, axis=0)
-    return img
+    img = np.array(img, dtype=np.float32) / 255.0
+    return np.expand_dims(img, axis=0)
 
 
 def predict_disease(image_bytes):
     load_model_and_classes()
-
     image = preprocess_image(image_bytes)
 
-    preds = _model.predict(image)   # ✅ WORKS NOW
-    class_index = str(np.argmax(preds))
+    preds = _model.predict(image)
+    idx = int(np.argmax(preds))
     confidence = float(np.max(preds))
 
     return {
-        "disease_name": _class_indices.get(class_index, "Unknown"),
+        "disease_name": _class_indices.get(str(idx), "Unknown"),
         "confidence": confidence
     }
