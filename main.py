@@ -7,25 +7,13 @@ from typing import List
 from app import economic_service
 # We removed BaseModel from here because it's now in schemas.py
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
-import io
-import tensorflow as tf
-import json
-import numpy as np
 
 import traceback
 from fastapi.responses import JSONResponse
 
 import os
-from PIL import Image
 # Import services, database components, AND the new schemas
 from app import prediction_service, severity_service, treatment_service, database, schemas, auth
-
-working_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(working_dir, "models","plant_disease_model.h5")
-class_indices_path = os.path.join(working_dir, "models","class_indices.json")
-model = tf.keras.models.load_model(model_path)
-with open(class_indices_path, 'r') as f:
-    class_indices = json.load(f)
 
 # This line remains the same
 database.create_db_and_tables()
@@ -170,19 +158,28 @@ async def read_users_me(current_user: schemas.User = Depends(auth.get_current_us
 @app.post("/analyze-plant/")
 async def analyze_plant_image(file: UploadFile = File(...)):
     try:
-        contents = await file.read()
-        img = Image.open(io.BytesIO(contents)).convert('RGB')
-        img = img.resize((224, 224))
-        img_array = np.array(img) / 255.0
-        img_array = img_array.reshape(1, 224, 224, 3)
-        predictions = model.predict(img_array)
-        predicted_index = str(np.argmax(predictions))
-        predicted_class_name = class_indices.get(predicted_index, "Unknown Disease")
-        confidence = float(np.max(predictions))
-        return {"predicted_disease": predicted_class_name, "confidence": confidence}
-    except Exception as e:
-        return {"error": f"Prediction failed: {e}"}
+        image_bytes = await file.read()
 
+        if not image_bytes:
+            raise ValueError("Received empty image")
+
+        prediction_result = prediction_service.predict_disease(image_bytes)
+
+        # TEMP: disable severity to isolate
+        severity_percentage = 0.0
+
+        return {
+            "disease_name": prediction_result["disease_name"],
+            "confidence": float(prediction_result["confidence"]),
+            "severity_percentage": severity_percentage
+        }
+
+    except Exception as e:
+        traceback.print_exc()   # 🔥 MUST PRINT IN RENDER LOGS
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 @app.get("/get-treatment/", summary="Get treatment plan for a disease")

@@ -1,45 +1,36 @@
-import tensorflow as tf
-import numpy as np
-from PIL import Image
-import io
+# app/prediction_service.py
+import os
 import json
+import io
+import numpy as np
+import tensorflow as tf
+from PIL import Image
 
-MODEL_PATH = "models/plant_disease_model.h5"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "plant_disease_model.h5")
+CLASS_PATH = os.path.join(BASE_DIR, "models", "class_indices.json")
 
-_model = None
-_class_indices = None
+# Load once
+model = tf.keras.models.load_model(MODEL_PATH)
 
-
-def load_model_and_classes():
-    global _model, _class_indices
-
-    if _model is None:
-        _model = tf.keras.models.load_model(
-            MODEL_PATH,
-            compile=False
-        )
-
-    if _class_indices is None:
-        with open("models/class_indices.json") as f:
-            _class_indices = {str(k): v for k, v in json.load(f).items()}
+with open(CLASS_PATH, "r") as f:
+    class_indices = json.load(f)
 
 
-def preprocess_image(image_bytes):
+def preprocess_image(image_bytes: bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = img.resize((224, 224))
-    img = np.array(img, dtype=np.float32) / 255.0
-    return np.expand_dims(img, axis=0)
+    img_array = np.array(img, dtype=np.float32) / 255.0
+    return img_array.reshape(1, 224, 224, 3)
 
 
-def predict_disease(image_bytes):
-    load_model_and_classes()
+def predict_disease(image_bytes: bytes):
     image = preprocess_image(image_bytes)
-
-    preds = _model.predict(image)
-    idx = int(np.argmax(preds))
-    confidence = float(np.max(preds))
+    predictions = model.predict(image)
+    idx = str(np.argmax(predictions))
+    confidence = float(np.max(predictions))
 
     return {
-        "disease_name": _class_indices.get(str(idx), "Unknown"),
+        "disease_name": class_indices.get(idx, "Unknown Disease"),
         "confidence": confidence
     }
