@@ -21,8 +21,8 @@ from PIL import Image
 from app import prediction_service, severity_service, treatment_service, database, schemas, auth
 
 working_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(working_dir, "models\plant_disease_model.h5")
-class_indices_path = os.path.join(working_dir, "models\class_indices.json")
+model_path = os.path.join(working_dir, "models","plant_disease_model.h5")
+class_indices_path = os.path.join(working_dir, "models","class_indices.json")
 model = tf.keras.models.load_model(model_path)
 with open(class_indices_path, 'r') as f:
     class_indices = json.load(f)
