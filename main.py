@@ -7,6 +7,7 @@ from typing import List
 from app import economic_service
 # We removed BaseModel from here because it's now in schemas.py
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
+
 import traceback
 from fastapi.responses import JSONResponse
 
@@ -153,26 +154,33 @@ async def reset_password(token: str, new_password: str, db: Session = Depends(da
 async def read_users_me(current_user: schemas.User = Depends(auth.get_current_user)):
     return current_user
 
+
 @app.post("/analyze-plant/")
 async def analyze_plant_image(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
 
+        if not image_bytes:
+            raise ValueError("Received empty image")
+
         prediction_result = prediction_service.predict_disease(image_bytes)
-        severity_percentage = severity_service.analyze_severity(image_bytes)
+
+        # TEMP: disable severity to isolate
+        severity_percentage = 0.0
 
         return {
             "disease_name": prediction_result["disease_name"],
             "confidence": float(prediction_result["confidence"]),
-            "severity_percentage": float(severity_percentage)
+            "severity_percentage": severity_percentage
         }
 
     except Exception as e:
-        traceback.print_exc()   # 👈 THIS IS CRITICAL
+        traceback.print_exc()   # 🔥 MUST PRINT IN RENDER LOGS
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
         )
+
 
 @app.get("/get-treatment/", summary="Get treatment plan for a disease")
 async def get_treatment(disease_name: str, severity: float, language: str = "English"):
