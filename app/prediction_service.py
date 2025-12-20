@@ -4,81 +4,46 @@ import numpy as np
 import io
 import json
 
-# --------------------------------------------------
-# 1. Load model (lazy loading – SAFE for Render)
-# --------------------------------------------------
 MODEL_PATH = "models/plant_disease_model.keras"
-CLASS_INDEX_PATH = "models/class_indices.json"
 
 _model = None
-_class_map = None
-
+_class_names = None
 
 def get_model():
     global _model
     if _model is None:
-        _model = tf.keras.models.load_model(
-            MODEL_PATH,
-            compile=False
-        )
-        print("✅ Lightweight model loaded")
+        _model = tf.keras.models.load_model(MODEL_PATH, compile=False)
     return _model
 
-
-def get_class_map():
-    """
-    Handles BOTH formats safely:
-    1) { "Apple___Black_rot": 1 }
-    2) { "1": "Apple___Black_rot" }
-    """
-    global _class_map
-    if _class_map is None:
-        with open(CLASS_INDEX_PATH, "r") as f:
-            raw = json.load(f)
-
-        # If keys are digits → already index → name
-        if all(str(k).isdigit() for k in raw.keys()):
-            _class_map = {int(k): v for k, v in raw.items()}
-        else:
-            # Otherwise → name → index → invert
-            _class_map = {v: k for k, v in raw.items()}
-
-        print("✅ Class map loaded:", _class_map)
-
-    return _class_map
+def get_class_names():
+    global _class_names
+    if _class_names is None:
+        with open("models/class_indices.json") as f:
+            class_indices = json.load(f)
+        # invert mapping: index → class name
+        _class_names = {v: k for k, v in class_indices.items()}
+    return _class_names
 
 
-
-# --------------------------------------------------
-# 2. Image preprocessing
-# --------------------------------------------------
-def preprocess_image(image_bytes: bytes, target_size=(224, 224)) -> np.ndarray:
+def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    img = img.resize(target_size)
-
-    img_array = tf.keras.preprocessing.image.img_to_array(img)
-    img_array = img_array / 255.0  # normalize
-    img_array = np.expand_dims(img_array, axis=0)
-
-    return img_array
+    img = img.resize((224, 224))
+    arr = np.array(img) / 255.0
+    arr = np.expand_dims(arr, axis=0)
+    return arr
 
 
-# --------------------------------------------------
-# 3. Prediction
-# --------------------------------------------------
-def predict_disease(image_bytes: bytes) -> dict:
+def predict_disease(image_bytes):
     model = get_model()
-    class_map = get_class_map()
+    class_names = get_class_names()
 
-    image = preprocess_image(image_bytes)
+    img = preprocess_image(image_bytes)
+    preds = model.predict(img)
 
-    preds = model.predict(image)
-    class_id = int(np.argmax(preds))
+    idx = int(np.argmax(preds))
     confidence = float(np.max(preds))
 
-    disease_name = class_map.get(class_id, "Unknown Disease")
-
     return {
-        "disease_name": disease_name,
-        "confidence": round(confidence, 4)
+        "disease_name": class_names.get(idx, "Unknown Disease"),
+        "confidence": confidence
     }

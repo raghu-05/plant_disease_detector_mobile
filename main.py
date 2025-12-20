@@ -7,6 +7,7 @@ from typing import List
 from app import economic_service
 # We removed BaseModel from here because it's now in schemas.py
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
+import traceback
 
 import os
 # Import services, database components, AND the new schemas
@@ -159,7 +160,8 @@ async def analyze_plant_image(file: UploadFile = File(...)):
         prediction_result = prediction_service.predict_disease(image_bytes)
         severity_percentage = severity_service.analyze_severity(image_bytes)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Image processing failed")
 
     return {
         "disease_name": prediction_result["disease_name"],
