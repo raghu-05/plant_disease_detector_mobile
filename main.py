@@ -164,9 +164,8 @@ async def analyze_plant_image(file: UploadFile = File(...)):
             raise ValueError("Received empty image")
 
         prediction_result = prediction_service.predict_disease(image_bytes)
-
-        # TEMP: disable severity to isolate
         severity_percentage = 0.0
+
 
         return {
             "disease_name": prediction_result["disease_name"],
