@@ -157,29 +157,15 @@ async def read_users_me(current_user: schemas.User = Depends(auth.get_current_us
 
 @app.post("/analyze-plant/")
 async def analyze_plant_image(file: UploadFile = File(...)):
-    try:
-        image_bytes = await file.read()
+    image_bytes = await file.read()
+    result = prediction_service.predict_disease(image_bytes)
+    severity = severity_service.analyze_severity(image_bytes)
 
-        if not image_bytes:
-            raise ValueError("Received empty image")
-
-        prediction_result = prediction_service.predict_disease(image_bytes)
-
-        # TEMP: disable severity to isolate
-        severity_percentage = 0.0
-
-        return {
-            "disease_name": prediction_result["disease_name"],
-            "confidence": float(prediction_result["confidence"]),
-            "severity_percentage": severity_percentage
-        }
-
-    except Exception as e:
-        traceback.print_exc()   # 🔥 MUST PRINT IN RENDER LOGS
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+    return {
+        "disease_name": result["disease_name"],
+        "confidence": f"{result['confidence']:.2%}",
+        "severity_percentage": f"{severity:.2f}%"
+    }
 
 
 @app.get("/get-treatment/", summary="Get treatment plan for a disease")
