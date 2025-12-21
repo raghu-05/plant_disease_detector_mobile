@@ -10,7 +10,8 @@ from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 
 import traceback
 from fastapi.responses import JSONResponse
-
+import random
+from app.database import otp_store
 import os
 # Import services, database components, AND the new schemas
 from app import prediction_service, severity_service, treatment_service, database, schemas, auth
@@ -228,3 +229,49 @@ def read_feedbacks(db: Session = Depends(get_db)):
         }
         for f in feedbacks
     ]
+@app.post("/forgot-password-otp")
+def forgot_password_otp(email: str, db: Session = Depends(database.get_db)):
+    user = db.query(database.User).filter(database.User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    otp = random.randint(100000, 999999)
+
+    database.otp_store[email] = {
+        "otp": otp,
+        "expires": datetime.utcnow() + timedelta(minutes=5)
+    }
+
+    # 🔥 IMPORTANT FOR TESTING (CHECK RENDER LOGS)
+    print("🔐 PASSWORD RESET OTP:", otp)
+
+    return {"message": "OTP generated successfully"}
+
+
+@app.post("/reset-password-otp")
+def reset_password_otp(
+    email: str,
+    otp: int,
+    new_password: str,
+    db: Session = Depends(database.get_db)
+):
+    data = database.otp_store.get(email)
+
+    if not data:
+        raise HTTPException(status_code=400, detail="OTP not requested")
+
+    if datetime.utcnow() > data["expires"]:
+        del database.otp_store[email]
+        raise HTTPException(status_code=400, detail="OTP expired")
+
+    if data["otp"] != otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    user = db.query(database.User).filter(database.User.email == email).first()
+    user.hashed_password = auth.get_password_hash(new_password)
+    db.commit()
+
+    del database.otp_store[email]
+
+    return {"message": "Password reset successful"}
