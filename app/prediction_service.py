@@ -15,7 +15,7 @@ model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 with open(CLASS_PATH, "r") as f:
     class_indices = json.load(f)
 
-index_to_class = {int(v): k for k, v in class_indices.items()}
+index_to_class = {int(k): v for k, v in class_indices.items()}
 
 
 def predict_disease(image_bytes: bytes):
